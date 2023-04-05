@@ -34,6 +34,21 @@ from dddpy.usecase.book import (
     BookUpdateModel,
 )
 
+from dddpy.infrastructure.sqlite.employee import (
+    EmployeeRepositoryImpl,
+    EmployeeCommandUseCaseUnitOfWorkImpl,
+)
+from dddpy.usecase.employee import (
+    EmployeeCommandUseCaseUnitOfWork,
+    EmployeeCommandUseCase,
+    EmployeeCommandUseCaseImpl,
+    EmployeeCreateModel,
+    EmployeeReadModel,
+)
+from dddpy.domain.employee import (
+    EmployeeRepository
+)
+
 config.fileConfig("logging.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 
@@ -210,3 +225,31 @@ async def delete_book(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+
+def employee_command_usecase(session: Session = Depends(get_session)) -> EmployeeCommandUseCase:
+    employee_repository: EmployeeRepository  = EmployeeRepositoryImpl(session)
+    uow: EmployeeCommandUseCaseUnitOfWork = EmployeeCommandUseCaseUnitOfWorkImpl(
+        session, employee_repository=employee_repository
+    )
+    return EmployeeCommandUseCaseImpl(uow)
+
+@app.post(
+    "/employees",
+    response_model=EmployeeReadModel,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_employee(
+    data: EmployeeCreateModel,
+    employee_command_usecase: EmployeeCommandUseCase = Depends(employee_command_usecase),
+):
+    try:
+        employee = employee_command_usecase.create_book(data)
+    except Exception as e:
+        logger.error(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    
+    return employee
+    
